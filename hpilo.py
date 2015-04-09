@@ -1595,8 +1595,44 @@ class Ilo(object):
         return self._control_tag('SERVER_INFO', 'SET_PENDING_BOOT_MODE', attrib={'VALUE': boot_mode.upper()})
 
     def set_persistent_boot(self, devices):
-        """Set persistent boot order, devices should be comma-separated"""
-        elements = [etree.Element('DEVICE', VALUE=x.upper()) for x in devices.split(',')]
+        """ Set persistent boot order, devices should be comma-separated.
+            :params devices: a list containing strings with boot parameters.
+
+            Available legacy boot parameters: CDROM, FlexibleLOM, EmbeddedLOM,
+                NIC, HDD, SA_HDD, USB_HDD, PCI_DEVICE.
+            Available uEFI boot parameters: Use ilo.get_persistent_boot method
+                to retrieve the available options.
+
+        """
+
+        def _get_persistent_boot_efi(self, devices):
+            """ Generate elements used for set_persistent_boot for uEFI.
+
+                :return: list containing XML elements
+
+            """
+            elements_efi = [etree.Element('DEVICE', VALUE=device)
+                            for device in devices.split(',')]
+            return elements
+
+        def _get_persistent_boot_legacy(self, devices):
+            """ General method for generating elements used for set_persistent_boot
+
+                All device values must be upper case.
+
+                :return: list containing XML elements
+
+            """
+            elements_legacy = [etree.Element('DEVICE', VALUE=device.upper())
+                               for device in devices.split(',')]
+            return elements_legacy
+
+        # Introspect if BIOS or uEFI
+        if 'Boot' in devices:
+            elements = self._get_persistent_boot_efi(devices)
+        else:
+            elements = self._get_persistent_boot_legacy(devices)
+
         return self._control_tag('SERVER_INFO', 'SET_PERSISTENT_BOOT', elements=elements)
 
     def set_pers_mouse_keyboard_enabled(self, enabled):
