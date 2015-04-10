@@ -535,9 +535,11 @@ class Ilo(object):
         # This shouldn't be reached as all messages are RIBCL messages. But who knows!
         return message
 
-    def _element_children_to_dict(self, element):
+    def _element_children_to_dict(self, element, attrib=None):
         """Returns a dict with tag names of all child elements as keys and the
            VALUE attributes as values"""
+        if attrib is None:
+            attrib = 'VALUE'
         retval = {}
         keys = [elt.tag.lower() for elt in element]
         if len(keys) != 1 and len(set(keys)) == 1:
@@ -549,7 +551,9 @@ class Ilo(object):
             if hasattr(self, fname):
                 retval.update(getattr(self, fname)(elt))
                 continue
-            key, val, unit = elt.tag.lower(), elt.get('VALUE', elt.get('value', None)), elt.get('UNIT', None)
+            key = elt.tag.lower()
+            val = elt.get(attrib, elt.get('value', None))
+            unit = elt.get('UNIT', None)
             if val is None:
                 # HP is not best friends with consistency. Sometimes there are
                 # attributes, sometimes child tags and sometimes text nodes. Oh
@@ -633,16 +637,18 @@ class Ilo(object):
         fd.close()
         return ret
 
-    def _info_tag(self, infotype, tagname, returntags=None, attrib={}, process=lambda x: x):
+    def _info_tag(self, infotype, tagname, returntags=None, attrib={},
+                  process=lambda x: x, returnattrib=None):
         root, inner = self._root_element(infotype, MODE='read')
         etree.SubElement(inner, tagname, **attrib)
         if self.delayed:
             self._processors.append([self._process_info_tag, returntags or [tagname], process])
             return
         header, message = self._request(root)
-        return self._process_info_tag(message, returntags or [tagname], process)
+        return self._process_info_tag(message, returntags or [tagname], process,
+                                      attrib=returnattrib)
 
-    def _process_info_tag(self, message, returntags, process):
+    def _process_info_tag(self, message, returntags, process, attrib=None):
         if isinstance(returntags, basestring):
             returntags = [returntags]
 
@@ -651,7 +657,7 @@ class Ilo(object):
                 continue
             message = message.find(tag)
             if list(message):
-                return process(self._element_children_to_dict(message))
+                return process(self._element_children_to_dict(message, attrib))
             else:
                 return process(self._element_to_dict(message))
         raise IloError("Expected tag '%s' not found" % "' or '".join(returntags))
@@ -1118,7 +1124,12 @@ class Ilo(object):
                 data.sort(key=lambda x: x[1])
                 return [x[0].lower() for x in data]
             return [x.lower() for x in data]
-        return self._info_tag('SERVER_INFO', 'GET_PERSISTENT_BOOT', ('PERSISTENT_BOOT', 'GET_PERSISTENT_BOOT'), process=process)
+
+        initial_results = self._info_tag('SERVER_INFO',
+                                         'GET_PERSISTENT_BOOT',
+                                         ('PERSISTENT_BOOT', 'GET_PERSISTENT_BOOT'),
+                                         process=process)
+        return #TODO: Peter left off here
 
     def get_pers_mouse_keyboard_enabled(self):
         """Returns whether persistent mouse and keyboard are enabled"""
